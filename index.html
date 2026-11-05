@@ -1,17 +1,449 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title> students roster</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">
-  
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Student Result Management System - Protected</title>
+
+<!-- Bootstrap 5 CSS CDN -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" crossorigin="anonymous">
+<style>
+    body {
+        background: #f1f5f9;
+        color: #1e293b;
+        font-family: Arial, sans-serif;
+        user-select: none; /* Disable Text Selection */
+        -webkit-user-select: none;
+    }
+    /* የተማሪ ስም የሚቀመጥበትን (Student Name) ቋሚ ስፋት በመጨመር እንዳይጠበብ ማድረግ */
+    table th:nth-child(2), table td:nth-child(2) {
+        min-width: 220px !important; 
+        text-align: left !important;
+        padding-left: 10px !important;
+    }
+    .total-cell {
+        background-color: #f0fdf4 !important;
+        font-weight: bold;
+    }
+    .rank-cell {
+        background-color: #fef3c7 !important;
+        font-weight: bold;
+    }
+    #lockOverlay {
+        position: fixed;
+        top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(15, 23, 42, 0.95);
+        z-index: 9999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    @media print {
+        .no-print { display: none !important; }
+    }
+</style>
 </head>
-<body>
-  <canvas id="canvas"></canvas>
-  <script src="render.js"></script><!-- defines canvas, ctx, draw() -->
-  <script src="input.js"></script><!-- attaches keyboard + touch listeners -->
-  <script src="game.js"></script> <!-- state, loop, boot -->
+
+<body oncontextmenu="return false;"> <!-- Disable Right Click -->
+
+<!-- LOCK SCREEN OVERLAY -->
+<div id="lockOverlay">
+    <div class="card p-4 shadow-lg text-center rounded-4" style="max-width: 400px; width: 90%;">
+        <h4 class="fw-bold mb-3 text-primary">🔒 Secured System Access</h4>
+        <p class="text-muted small">ለተጠቃሚዎች የተቆለፈ ሲስተም። ለመግባት የይለፍ ቃል ያስገቡ።</p>
+        <div class="mb-3">
+            <input type="password" id="passInput" class="form-control text-center fs-5" placeholder="Enter Password">
+        </div>
+        <button class="btn btn-primary w-100 py-2 fw-bold mb-2" onclick="_0x4a12()">Unlock System</button>
+        <div id="passErr" class="text-danger small mt-2" style="display:none;">ትክክለኛ የይለፍ ቃል ያስገቡ! (Default: 1234)</div>
+    </div>
+</div>
+
+<div class="container py-4">
+<!-- HEADER -->
+<header class="p-4 mb-4 text-white bg-primary rounded-4 shadow d-flex justify-content-between align-items-center flex-wrap">
+    <div>
+        <h1 class="display-6 fw-bold mb-0">Student Result Management System</h1>
+        <p class="mb-0 text-white-50">Protected & Obfuscated Version</p>
+    </div>
+    <button class="btn btn-light btn-sm fw-bold no-print text-primary" onclick="_0x8f2d()">🔒 Lock Page</button>
+</header>
+
+<!-- SETTINGS -->
+<div class="card shadow-sm p-4 mb-4 rounded-4 no-print">
+    <div class="row g-3 justify-content-center align-items-center">
+        <div class="col-md-3">
+            <label for="studentCount" class="form-label fw-bold">Number of Students (5–200)</label>
+            <input type="number" id="studentCount" class="form-control" min="5" max="200" value="5">
+        </div>
+        <div class="col-md-3">
+            <label for="subjectCount" class="form-label fw-bold">Number of Subjects (1–20)</label>
+            <input type="number" id="subjectCount" class="form-control" min="1" max="20" value="4">
+        </div>
+        <div class="col-md-3">
+            <label class="form-label fw-bold">Import Names (.txt/.csv)</label>
+            <input type="file" id="importFile" class="form-control form-control-sm" accept=".csv, .txt" onchange="importStudentNames(event)">
+        </div>
+        <div class="col-md-3 d-flex gap-2 mt-4">
+            <button class="btn btn-success flex-grow-1" onclick="_0x1b7a()">Create Tables</button>
+            <button class="btn btn-secondary" onclick="window.print()">Print</button>
+            <button class="btn btn-danger" onclick="_0x3e91()">Reset</button>
+        </div>
+    </div>
+</div>
+
+<!-- SUBJECT NAMES INPUT CONTAINER -->
+<div id="subjectNamesContainer" class="card shadow-sm p-3 mb-4 rounded-4 no-print" style="display:none;">
+    <h5 class="text-primary mb-3 text-center">Enter Subject Names</h5>
+    <div id="subjectInputs" class="row g-2 justify-content-center"></div>
+</div>
+
+<div class="alert alert-primary no-print" role="alert">
+    <strong>Instructions:</strong> Enter subject names, student names, and marks from 0 to 100. Results are calculated automatically. You can also import names using a CSV/Text file.
+</div>
+
+<div id="message" class="text-center fw-bold mb-3"></div>
+
+<!-- NAVIGATION BUTTONS -->
+<div class="row g-2 mb-4 no-print">
+    <div class="col-4">
+        <button id="nav1" class="btn btn-primary w-100 py-2 fw-bold active" onclick="_0x5c42('semester1')">Semester 1</button>
+    </div>
+    <div class="col-4">
+        <button id="nav2" class="btn btn-outline-secondary w-100 py-2 fw-bold" onclick="_0x5c42('semester2')">Semester 2</button>
+    </div>
+    <div class="col-4">
+        <button id="nav3" class="btn btn-outline-secondary w-100 py-2 fw-bold" onclick="_0x5c42('annual')">Annual Result</button>
+    </div>
+</div>
+
+<!-- SEMESTER 1 PAGE -->
+<section id="semester1" class="page active">
+    <div class="card shadow-sm p-4 mb-4 rounded-4">
+        <h3 class="text-center mb-3 text-primary">Semester 1 - Enter Names and Marks</h3>
+        <div id="inputTable1" class="table-responsive"></div>
+    </div>
+    <div class="card shadow-sm p-4 mb-4 rounded-4">
+        <h3 class="text-center mb-3 text-success">Semester 1 Results</h3>
+        <div id="resultTable1" class="table-responsive"></div>
+        <div class="d-flex justify-content-center gap-2 mt-3 no-print">
+            <button class="btn btn-outline-success" onclick="_0x2d11('result1')">Download Excel</button>
+            <button class="btn btn-outline-primary" onclick="_0x9a44('result1')">Download Word</button>
+            <button class="btn btn-outline-danger" onclick="_0x7f88('result1')">Download PDF</button>
+        </div>
+    </div>
+</section>
+
+<!-- SEMESTER 2 PAGE -->
+<section id="semester2" class="page" style="display: none;">
+    <div class="card shadow-sm p-4 mb-4 rounded-4">
+        <h3 class="text-center mb-3 text-primary">Semester 2 - Enter Names and Marks</h3>
+        <div id="inputTable2" class="table-responsive"></div>
+    </div>
+    <div class="card shadow-sm p-4 mb-4 rounded-4">
+        <h3 class="text-center mb-3 text-success">Semester 2 Results</h3>
+        <div id="resultTable2" class="table-responsive"></div>
+        <div class="d-flex justify-content-center gap-2 mt-3 no-print">
+            <button class="btn btn-outline-success" onclick="_0x2d11('result2')">Download Excel</button>
+            <button class="btn btn-outline-primary" onclick="_0x9a44('result2')">Download Word</button>
+            <button class="btn btn-outline-danger" onclick="_0x7f88('result2')">Download PDF</button>
+        </div>
+    </div>
+</section>
+
+<!-- ANNUAL RESULT PAGE -->
+<section id="annual" class="page" style="display: none;">
+    <div class="card shadow-sm p-4 mb-4 rounded-4">
+        <h3 class="text-center mb-3 text-success">Annual Result</h3>
+        <p class="text-center text-muted">Each subject column displays the average score for Semester 1 and Semester 2: <strong>(Sem 1 + Sem 2) ÷ 2</strong></p>
+        <div id="annualTable" class="table-responsive"></div>
+        <div class="d-flex justify-content-center gap-2 mt-3 no-print">
+            <button class="btn btn-outline-success" onclick="_0x2d11('annualResult')">Download Excel</button>
+            <button class="btn btn-outline-primary" onclick="_0x9a44('annualResult')">Download Word</button>
+            <button class="btn btn-outline-danger" onclick="_0x7f88('annualResult')">Download PDF</button>
+        </div>
+    </div>
+</section>
+
+</div>
+
+<!-- OBFUSCATED JAVASCRIPT CODE -->
+<script>
+(function(){
+    var _0x98a2 = ["\x31\x32\x33\x34", "\x76\x61\x6c\x75\x65", "\x70\x61\x73\x73\x49\x6e\x70\x75\x74", "\x67\x65\x74\x45\x6c\x65\x6d\x65\x6e\x74\x42\x79\x49\x64", "\x73\x74\x79\x6c\x65", "\x64\x69\x73\x70\x6c\x61\x79", "\x6e\x6f\x6e\x65", "\x6c\x6f\x63\x6b\x4f\x76\x65\x72\x6c\x61\x79", "\x62\x6c\x6f\x63\x6b", "\x70\x61\x73\x73\x45\x72\x72"];
+    
+    window.addEventListener('keydown', function(e) {
+        if(e.keyCode == 123 || (e.ctrlKey && e.shiftKey && (e.keyCode == 73 || e.keyCode == 74)) || (e.ctrlKey && e.keyCode == 85)) {
+            e.preventDefault();
+            return false;
+        }
+    });
+
+    window._0x4a12 = function() {
+        var _0x1 = document[_0x98a2[3]](_0x98a2[2])[_0x98a2[1]];
+        if(_0x1 === _0x98a2[0]) {
+            document[_0x98a2[3]](_0x98a2[7])[_0x98a2[4]][_0x98a2[5]] = _0x98a2[6];
+            document[_0x98a2[3]](_0x98a2[9])[_0x98a2[4]][_0x98a2[5]] = _0x98a2[6];
+        } else {
+            document[_0x98a2[3]](_0x98a2[9])[_0x98a2[4]][_0x98a2[5]] = _0x98a2[8];
+        }
+    };
+
+    window._0x8f2d = function() {
+        document[_0x98a2[3]](_0x98a2[2])[_0x98a2[1]] = "";
+        document[_0x98a2[3]](_0x98a2[7])[_0x98a2[4]][_0x98a2[5]] = "flex";
+    };
+})();
+
+let _0xstN = 5, _0xsbN = 4, _0xsn = [], _0xsbn = [], _0xmks = [[], []];
+
+function _0x5c42(_0x1) {
+    document.querySelectorAll(".page").forEach(_0x2 => _0x2.style.display = "none");
+    document.getElementById(_0x1).style.display = "block";
+    ['nav1', 'nav2', 'nav3'].forEach(_0x3 => document.getElementById(_0x3).className = "btn btn-outline-secondary w-100 py-2 fw-bold");
+    const _0x4 = _0x1 === 'semester1' ? 'nav1' : _0x1 === 'semester2' ? 'nav2' : 'nav3';
+    document.getElementById(_0x4).className = "btn btn-primary w-100 py-2 fw-bold active";
+}
+
+function _0x1b7a() {
+    const _0x1 = Number(document.getElementById("studentCount").value);
+    const _0x2 = Number(document.getElementById("subjectCount").value);
+    if (!Number.isInteger(_0x1) || _0x1 < 5 || _0x1 > 200 || !Number.isInteger(_0x2) || _0x2 < 1 || _0x2 > 20) return;
+    _0xstN = _0x1; _0xsbN = _0x2;
+    if (_0xsbn.length !== _0xsbN) _0xsbn = Array.from({ length: _0xsbN }, (_, j) => "Subject " + (j + 1));
+    
+    if (_0xsn.length !== _0xstN) {
+        _0xsn = Array(_0xstN).fill("").map((_, i) => _0xsn[i] || "");
+    }
+    
+    _0xmks = [0, 1].map((sem) => Array.from({ length: _0xstN }, (_, i) => (_0xmks[sem][i] && _0xmks[sem][i].length === _0xsbN) ? _0xmks[sem][i] : Array(_0xsbN).fill("")));
+    _0xrsi();
+    for (let sem = 0; sem < 2; sem++) _0xbit(sem);
+    _0xca();
+}
+
+function _0xrsi() {
+    const _0x1 = document.getElementById("subjectInputs");
+    _0x1.innerHTML = "";
+    document.getElementById("subjectNamesContainer").style.display = "block";
+    for (let j = 0; j < _0xsbN; j++) {
+        const col = document.createElement("div");
+        col.className = "col-md-3";
+        const input = document.createElement("input");
+        input.type = "text";
+        input.className = "form-control form-control-sm";
+        input.value = _0xsbn[j] || ("Subject " + (j + 1));
+        input.addEventListener("input", (e) => {
+            _0xsbn[j] = e.target.value;
+            for (let sem = 0; sem < 2; sem++) _0xbit(sem);
+            _0xca();
+        });
+        col.appendChild(input);
+        _0x1.appendChild(col);
+    }
+}
+
+function _0xbit(sem) {
+    const _0x1 = document.getElementById("inputTable" + (sem + 1));
+    _0x1.innerHTML = "";
+    const table = document.createElement("table");
+    table.className = "table table-bordered table-striped text-center align-middle";
+    const thead = document.createElement("thead");
+    thead.className = "table-primary";
+    const header = document.createElement("tr");
+    ["No.", "Student Name", ..._0xsbn].forEach(text => {
+        const th = document.createElement("th"); th.textContent = text; header.appendChild(th);
+    });
+    thead.appendChild(header); table.appendChild(thead);
+    const tbody = document.createElement("tbody");
+    for (let i = 0; i < _0xstN; i++) {
+        const tr = document.createElement("tr");
+        const tdNo = document.createElement("td"); tdNo.textContent = i + 1; tr.appendChild(tdNo);
+        const nameCell = document.createElement("td");
+        const nameInput = document.createElement("input");
+        nameInput.type = "text"; nameInput.className = "form-control form-control-sm text-start"; nameInput.value = _0xsn[i] || "";
+        nameInput.addEventListener("input", () => { 
+            _0xsn[i] = nameInput.value; 
+            document.querySelectorAll(`tr td:nth-child(2) input`).forEach((inp, idx) => {
+                if(idx % _0xstN === i && inp !== nameInput) inp.value = _0xsn[i];
+            });
+            _0xca(); 
+        });
+        nameCell.appendChild(nameInput); tr.appendChild(nameCell);
+        for (let j = 0; j < _0xsbN; j++) {
+            const td = document.createElement("td");
+            const input = document.createElement("input");
+            input.type = "number"; input.className = "form-control form-control-sm text-center";
+            input.value = _0xmks[sem][i][j];
+            input.addEventListener("input", () => {
+                const val = input.value.trim();
+                _0xmks[sem][i][j] = (val === "" || isNaN(val) || val < 0 || val > 100) ? "" : Number(val);
+                _0xca();
+            });
+            td.appendChild(input); tr.appendChild(td);
+        }
+        tbody.appendChild(tr);
+    }
+    table.appendChild(tbody); _0x1.appendChild(table);
+}
+
+function _0xca() {
+    for (let sem = 0; sem < 2; sem++) _0xrs(sem, _0xgr(sem));
+    _0xra();
+}
+
+function _0xgr(sem) {
+    const rows = [];
+    for (let i = 0; i < _0xstN; i++) {
+        const complete = _0xmks[sem][i].length === _0xsbN && _0xmks[sem][i].every(v => v !== "");
+        const total = complete ? _0xmks[sem][i].reduce((a, b) => a + Number(b), 0) : null;
+        rows.push({ index: i, name: _0xsn[i], subjectMarks: [..._0xmks[sem][i]], total, average: complete ? total / _0xsbN : null, rank: null, complete });
+    }
+    _0xar(rows);
+    return rows;
+}
+
+function _0xar(rows) {
+    const ranked = [...rows].filter(r => r.complete).sort((a, b) => b.total - a.total);
+    let pTot = null, rk = 0;
+    ranked.forEach((r, idx) => {
+        if (pTot === null || r.total !== pTot) rk = idx + 1;
+        r.rank = rk; pTot = r.total;
+    });
+}
+
+function _0xrs(sem, rows) {
+    const _0x1 = document.getElementById("resultTable" + (sem + 1));
+    _0x1.innerHTML = "";
+    const table = document.createElement("table");
+    table.className = "table table-bordered table-hover text-center align-middle";
+    const thead = document.createElement("thead"); thead.className = "table-success";
+    const header = document.createElement("tr");
+    ["No.", "Student Name", ..._0xsbn, "Total", "Average", "Rank"].forEach(text => {
+        const th = document.createElement("th"); th.textContent = text; header.appendChild(th);
+    });
+    thead.appendChild(header); table.appendChild(thead);
+    const tbody = document.createElement("tbody");
+    rows.forEach(r => {
+        const tr = document.createElement("tr");
+        _0xac(tr, String(r.index + 1)); 
+        const tdName = document.createElement("td"); tdName.textContent = r.name || "—"; tdName.style.textAlign = "left"; tdName.style.paddingLeft = "10px"; tr.appendChild(tdName);
+        r.subjectMarks.forEach(v => _0xac(tr, v === "" ? "—" : Number(v).toFixed(2)));
+        _0xac(tr, r.complete ? r.total.toFixed(2) : "—", "total-cell");
+        _0xac(tr, r.complete ? r.average.toFixed(2) : "—");
+        _0xac(tr, r.complete ? String(r.rank) : "—", "rank-cell");
+        tbody.appendChild(tr);
+    });
+    table.appendChild(tbody); _0x1.appendChild(table);
+}
+
+function _0xra() {
+    const _0x1 = document.getElementById("annualTable");
+    _0x1.innerHTML = "";
+    const rows = [];
+    for (let i = 0; i < _0xstN; i++) {
+        const complete = [0, 1].every(sem => _0xmks[sem][i].every(v => v !== ""));
+        const subjectAverages = [];
+        for (let j = 0; j < _0xsbN; j++) {
+            const m1 = _0xmks[0][i][j], m2 = _0xmks[1][i][j];
+            subjectAverages.push((m1 !== "" && m2 !== "") ? (Number(m1) + Number(m2)) / 2 : null);
+        }
+        const semesterTotals = [0, 1].map(sem => complete ? _0xmks[sem][i].reduce((a, b) => a + Number(b), 0) : null);
+        const total = complete ? semesterTotals[0] + semesterTotals[1] : null;
+        rows.push({ index: i, name: _0xsn[i], subjectAverages, semesterTotals, total, average: complete ? total / (_0xsbN * 2) : null, rank: null, complete });
+    }
+    _0xar(rows);
+    const table = document.createElement("table");
+    table.className = "table table-bordered table-hover text-center align-middle";
+    const thead = document.createElement("thead"); thead.className = "table-success";
+    const header = document.createElement("tr");
+    ["No.", "Student Name", ..._0xsbn.map(n => n + " (Avg)"), "Sem 1 Total", "Sem 2 Total", "Annual Total", "Annual Average", "Annual Rank"].forEach(text => {
+        const th = document.createElement("th"); th.textContent = text; header.appendChild(th);
+    });
+    thead.appendChild(header); table.appendChild(thead);
+    const tbody = document.createElement("tbody");
+    rows.forEach(r => {
+        const tr = document.createElement("tr");
+        _0xac(tr, String(r.index + 1)); 
+        const tdName = document.createElement("td"); tdName.textContent = r.name || "—"; tdName.style.textAlign = "left"; tdName.style.paddingLeft = "10px"; tr.appendChild(tdName);
+        r.subjectAverages.forEach(a => _0xac(tr, a === null ? "—" : a.toFixed(2)));
+        r.semesterTotals.forEach(t => _0xac(tr, t === null ? "—" : t.toFixed(2)));
+        _0xac(tr, r.complete ? r.total.toFixed(2) : "—", "total-cell");
+        _0xac(tr, r.complete ? r.average.toFixed(2) : "—");
+        _0xac(tr, r.complete ? String(r.rank) : "—", "rank-cell");
+        tbody.appendChild(tr);
+    });
+    table.appendChild(tbody); _0x1.appendChild(table);
+}
+
+function _0xac(row, val, cls = "") {
+    const td = document.createElement("td"); td.textContent = val;
+    if (cls) td.className = cls; row.appendChild(td);
+}
+
+function importStudentNames(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const content = e.target.result;
+        if (content.includes("PK") && file.name.match(/\.(docx|xlsx)$/i)) {
+            alert("እባክዎን የ Word ወይም Excel ፋይል በቀጥታ ሳይሆን፣ በ .txt ወይም .csv ፎርማት ያስቀምጡና ይጫኑ!");
+            return;
+        }
+        let names = content.split(/\r\n|\n/).map(name => name.trim()).filter(name => name !== "");
+        if (names.length > 0) {
+            document.getElementById("studentCount").value = names.length;
+            _0xstN = names.length;
+            _0xsn = names;
+            _0xmks = [0, 1].map(() => Array.from({ length: _0xstN }, () => Array(_0xsbN).fill("")));
+            _0xrsi();
+            for (let sem = 0; sem < 2; sem++) _0xbit(sem);
+            _0xca();
+            alert("የተማሪዎች ስሞች በተሳካ ሁኔታ ተጭነዋል! (" + names.length + " students)");
+        }
+    };
+    reader.readAsText(file);
+}
+
+function _0x3e91() {
+    document.getElementById("studentCount").value = 5;
+    document.getElementById("subjectCount").value = 4;
+    document.getElementById("importFile").value = "";
+    document.getElementById("subjectNamesContainer").style.display = "none";
+    _0xsn = [];
+    _0x1b7a();
+}
+
+function _0x2d11(id) {
+    const table = document.querySelector("#" + (id === "result1" ? "resultTable1" : id === "result2" ? "resultTable2" : "annualTable") + " table");
+    if (!table) return;
+    const rows = [...table.querySelectorAll("tr")].map(tr => [...tr.querySelectorAll("th, td")].map(c => c.innerText.trim()));
+    let csv = "\uFEFF" + rows.map(e => e.map(val => `"${val}"`).join(",")).join("\n");
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;' }));
+    a.download = id + ".csv"; a.click();
+}
+
+function _0x9a44(id) {
+    const table = document.querySelector("#" + (id === "result1" ? "resultTable1" : id === "result2" ? "resultTable2" : "annualTable") + " table");
+    if (!table) return;
+    const html = "<html><body>" + table.outerHTML + "</body></html>";
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob(["\ufeff", html], { type: "application/msword" }));
+    a.download = id + ".doc"; a.click();
+}
+
+function _0x7f88(id) {
+    const table = document.querySelector("#" + (id === "result1" ? "resultTable1" : id === "result2" ? "resultTable2" : "annualTable") + " table");
+    if (!table) return;
+    const win = window.open("", "_blank");
+    win.document.write(`<html><head><style>table{width:100%;border-collapse:collapse;}th,td{border:1px solid #000;padding:6px;text-align:center;}</style></head><body>${table.outerHTML}<script>window.onload=function(){window.print();window.close();}<\/script></body></html>`);
+    win.document.close();
+}
+
+window.onload = function() { _0x1b7a(); };
+</script>
 
 </body>
 </html>
